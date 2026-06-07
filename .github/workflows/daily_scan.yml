@@ -2,8 +2,8 @@ name: Scan Quotidien
 
 on:
   schedule:
-    - cron: '30 10 * * *' # 10h30 UTC soit 11h30 à Yaoundé
-  workflow_dispatch: # Permet de lancer le scan manuellement à tout moment
+    - cron: '45 9 * * *' # 45 minutes, 09h UTC (soit 10h45 à Yaoundé)
+  workflow_dispatch:
 
 jobs:
   build:
