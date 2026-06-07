@@ -29,11 +29,19 @@ def get_matches_today():
 print(f"🚀 Démarrage du scan automatique - {datetime.datetime.now()}")
 matchs = get_matches_today()
 
-if matchs:
-    print(f"✅ {len(matchs)} matchs trouvés pour aujourd'hui.")
-    for match in matchs:
-        h = match['teams']['home']['name']
-        a = match['teams']['away']['name']
-        print(f"Analyse : {h} vs {a}")
-else:
-    print("⚠️ Aucun match ou échec de l'API.")
+# Ouvre le fichier en mode écriture ('w')
+with open("resultats_analyse.txt", "w", encoding="utf-8") as f:
+    if matchs:
+        print(f"✅ {len(matchs)} matchs trouvés.")
+        f.write(f"Rapport du {datetime.datetime.now()}\n")
+        f.write("-" * 30 + "\n")
+        for match in matchs:
+            h = match['teams']['home']['name']
+            a = match['teams']['away']['name']
+            ligne = f"{h} vs {a}"
+            print(f"Analyse : {ligne}")
+            f.write(ligne + "\n")
+        print("💾 Résultats enregistrés dans 'resultats_analyse.txt'")
+    else:
+        f.write("Aucun match trouvé pour aujourd'hui.")
+        print("⚠️ Aucun match ou échec de l'API.")
