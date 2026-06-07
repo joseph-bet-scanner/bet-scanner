@@ -26,22 +26,17 @@ def get_matches_today():
         return []
 
 # --- EXÉCUTION ---
-print(f"🚀 Démarrage du scan automatique - {datetime.datetime.now()}")
 matchs = get_matches_today()
 
-# Ouvre le fichier en mode écriture ('w')
+# On ouvre toujours le fichier, même si matchs est vide
 with open("resultats_analyse.txt", "w", encoding="utf-8") as f:
+    f.write(f"Rapport du {datetime.datetime.now()}\n")
     if matchs:
-        print(f"✅ {len(matchs)} matchs trouvés.")
-        f.write(f"Rapport du {datetime.datetime.now()}\n")
-        f.write("-" * 30 + "\n")
         for match in matchs:
             h = match['teams']['home']['name']
             a = match['teams']['away']['name']
-            ligne = f"{h} vs {a}"
-            print(f"Analyse : {ligne}")
-            f.write(ligne + "\n")
-        print("💾 Résultats enregistrés dans 'resultats_analyse.txt'")
+            f.write(f"{h} vs {a}\n")
     else:
+        f.write("Aucun match aujourd'hui.")
         f.write("Aucun match trouvé pour aujourd'hui.")
         print("⚠️ Aucun match ou échec de l'API.")
