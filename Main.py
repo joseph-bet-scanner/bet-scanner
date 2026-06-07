@@ -1,46 +1,27 @@
 import os
 import requests
-import datetime
 
-# Récupération de la clé depuis les secrets GitHub
-API_KEY = os.getenv('API_KEY')
-API_HOST = "sofascore.p.rapidapi.com"
-
-def get_sofascore_matches():
-    # Date du jour
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    url = f"https://{API_HOST}/v1/sport/football/scheduled-events/{today}"
+def get_sofascore_odds(event_id):
+    # Remplace l'URL par celle que le testeur RapidAPI utilise pour les cotes
+    url = f"https://sofascore.p.rapidapi.com/v1/event/{event_id}/odds/1/all"
     
     headers = {
-        "x-rapidapi-key": API_KEY,
-        "x-rapidapi-host": API_HOST
+        "x-rapidapi-key": os.getenv('API_KEY'),
+        "x-rapidapi-host": "sofascore.p.rapidapi.com"
     }
     
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json().get('events', [])
-        else:
-            print(f"Erreur API {response.status_code}: {response.text}")
-            return []
-    except Exception as e:
-        print(f"Erreur de connexion : {e}")
-        return []
-
-def run():
-    print("--- Scan des matchs Sofascore ---")
-    matches = get_sofascore_matches()
+    response = requests.get(url, headers=headers)
     
-    if not matches:
-        print("Aucun match trouvé ou erreur de connexion.")
-        return
-
-    # Affichage direct dans les logs (plus simple que la gestion de fichier)
-    for match in matches:
-        home = match.get('homeTeam', {}).get('name', 'N/A')
-        away = match.get('awayTeam', {}).get('name', 'N/A')
-        comp = match.get('tournament', {}).get('name', 'N/A')
-        print(f"Match: {home} vs {away} | Compétition: {comp}")
+    if response.status_code == 200:
+        data = response.json()
+        # On parcourt les marchés (ex: "Full time")
+        for market in data.get('markets', []):
+            print(f"Marché : {market.get('marketName')}")
+            for choice in market.get('choices', []):
+                print(f" - Choix: {choice.get('name')} | Cote: {choice.get('fractionalValue')}")
+    else:
+        print(f"Erreur {response.status_code}: {response.text}")
 
 if __name__ == "__main__":
-    run()
+    # Remplace par un ID de match réel trouvé dans tes tests
+    get_sofascore_odds("8701972")
