@@ -49,6 +49,7 @@ def calculer_poisson(lh, la):
     return p1, px, p2
 
 # --- SCANNER ---
+REPORT_FILE="rapport_bets.txt"
 open(REPORT_FILE, "w").close() 
 print("🚀 Scan mondial lancé avec contournement anti-bot...")
 
