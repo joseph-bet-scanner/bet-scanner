@@ -1,23 +1,21 @@
 name: Scan Quotidien
 on:
   schedule:
-    - cron: '0 8 * * *'
-  workflow_dispatch:
+    - cron: '0 8 * * *'  # 0 minute, 8 heures, tous les jours
+  workflow_dispatch:      # Permet de tester manuellement maintenant
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v2
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-
       - name: Install dependencies
-        run: pip install pandas requests
-
-      - name: Run Scanner
+        run: pip install requests
+      - name: Run script
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
         run: python Main.py
