@@ -1,60 +1,38 @@
 import requests
 import os
-from datetime import datetime
 
+# Configuration avec ta clé API
 API_KEY = os.getenv('API_KEY')
-HEADERS = {"X-RapidAPI-Key": API_KEY, "X-RapidAPI-Host": "sofascore.p.rapidapi.com"}
-SEUIL_CONFIANCE = 0.05
-BANKROLL = 1000
+HEADERS = {
+    "x-rapidapi-host": "sofascore.p.rapidapi.com",
+    "x-rapidapi-key": API_KEY
+}
 
-def get_todays_matches():
-    # Récupère la date actuelle
-    aujourd_hui = datetime.now().strftime('%Y-%m-%d')
-    url = f"https://sofascore.p.rapidapi.com/matches/date/{aujourd_hui}"
+def get_matches_for_today():
+    # En utilisant l'endpoint que tu as validé via ton curl
+    # Note : teamId=38 est un exemple, assure-toi d'utiliser 
+    # l'ID d'une équipe qui joue aujourd'hui
+    url = "https://sofascore.p.rapidapi.com/teams/get-tournaments?teamId=38"
     try:
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
-        # Retourne les IDs des matchs du jour
-        return [m['id'] for m in response.json().get('events', [])[:10]]
+        data = response.json()
+        
+        # On extrait les tournois/événements
+        # Ajuste 'tournaments' selon la structure du JSON retourné
+        return data.get('tournaments', [])
     except Exception as e:
-        print(f"Erreur API (Date): {e}")
+        print(f"Erreur lors de la récupération : {e}")
         return []
 
-def get_match_stats(match_id):
-    try:
-        h2h_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/h2h", headers=HEADERS).json()
-        odds_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/odds/1/all", headers=HEADERS).json()
-        
-        duel = h2h_res.get('teamDuel', {})
-        total = duel.get('homeWins', 0) + duel.get('awayWins', 0) + duel.get('draws', 0)
-        
-        c1 = 2.0
-        markets = odds_res.get('markets', [])
-        if markets and 'choices' in markets[0]:
-            val = markets[0]['choices'][0].get('fractionalValue', '1/1')
-            num, den = map(int, val.split('/'))
-            c1 = (num / den) + 1
-        
-        prob_home = ((duel.get('homeWins', 0) + duel.get('draws', 0)) / total) if total > 0 else 0
-        return {"id": match_id, "prob": prob_home, "cote": c1}
-    except: return None
-
 if __name__ == "__main__":
-    print(f"--- Scan des matchs du {datetime.now().strftime('%Y-%m-%d')} ---")
-    match_ids = get_todays_matches()
-    results = []
-
-    for m_id in match_ids:
-        stats = get_match_stats(m_id)
-        if stats and stats["prob"] > 0:
-            results.append(stats)
-
-    # Tri par probabilité décroissante
-    results.sort(key=lambda x: x["prob"], reverse=True)
-
-    for res in results:
-        is_value = res["prob"] > (1 / res["cote"]) + SEUIL_CONFIANCE
-        status = "!!! VALUE BET !!!" if is_value else "Standard"
-        print(f"Match {res['id']} | Prob: {res['prob']:.2f} | Cote: {res['cote']:.2f} | {status}")
+    print("--- Scan des matchs ---")
+    tournois = get_matches_for_today()
     
+    if tournois:
+        print(f"Trouvé {len(tournois)} tournois actifs.")
+        for t in tournois:
+            print(f"Tournoi: {t.get('tournament', {}).get('name', 'N/A')}")
+    else:
+        print("Aucun tournoi trouvé pour cette équipe aujourd'hui.")
     print("--- Scan terminé ---")
