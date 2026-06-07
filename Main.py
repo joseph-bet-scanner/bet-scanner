@@ -2,22 +2,27 @@ import os
 import requests
 import datetime
 
-# Récupération sécurisée de la clé depuis les Secrets GitHub
+# Configuration
 API_KEY = os.getenv('API_KEY')
-API_HOST = "api-football-v1.p.rapidapi.com"
+API_HOST = "sofascore.p.rapidapi.com"
 
-def get_matches_today():
+def get_sofascore_matches():
+    # Date du jour au format requis par Sofascore
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    url = f"https://{API_HOST}/v3/fixtures"
-    querystring = {"date": today}
+    
+    # URL de l'API Sofascore pour les matchs de football
+    url = f"https://{API_HOST}/v1/sport/football/scheduled-events/{today}"
+    
     headers = {
         "x-rapidapi-key": API_KEY,
         "x-rapidapi-host": API_HOST
     }
+    
     try:
-        response = requests.get(url, headers=headers, params=querystring)
+        response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            return response.json().get('response', [])
+            data = response.json()
+            return data.get('events', [])
         else:
             print(f"Erreur API {response.status_code}: {response.text}")
             return []
@@ -25,18 +30,26 @@ def get_matches_today():
         print(f"Erreur de connexion : {e}")
         return []
 
-# --- EXÉCUTION ---
-matchs = get_matches_today()
+# Traitement des données
+def run_scanner():
+    print("Démarrage du scan Sofascore...")
+    matches = get_sofascore_matches()
+    
+    if not matches:
+        print("Aucun match trouvé pour aujourd'hui.")
+        return
 
-# On ouvre toujours le fichier, même si matchs est vide
-with open("resultats_analyse.txt", "w", encoding="utf-8") as f:
-    f.write(f"Rapport du {datetime.datetime.now()}\n")
-    if matchs:
-        for match in matchs:
-            h = match['teams']['home']['name']
-            a = match['teams']['away']['name']
-            f.write(f"{h} vs {a}\n")
-    else:
-        f.write("Aucun match aujourd'hui.")
-        f.write("Aucun match trouvé pour aujourd'hui.")
-        print("⚠️ Aucun match ou échec de l'API.")
+    with open("resultats_analyse.txt", "w", encoding="utf-8") as f:
+        for match in matches:
+            home = match.get('homeTeam', {}).get('name', 'Inconnu')
+            away = match.get('awayTeam', {}).get('name', 'Inconnu')
+            tournament = match.get('tournament', {}).get('name', 'Inconnu')
+            
+            ligne = f"Match: {home} vs {away} | Compétition: {tournament}\n"
+            print(ligne.strip())
+            f.write(ligne)
+            
+    print("Analyse terminée et sauvegardée dans resultats_analyse.txt")
+
+if __name__ == "__main__":
+    run_scanner()
