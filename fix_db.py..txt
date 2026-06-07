@@ -1,0 +1,22 @@
+import sqlite3
+DB_PATH = '/home/josephng/historique_analyses.db'
+
+def amorcer():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM historique_matchs") # On nettoie avant
+    
+    # Ajoute ici TOUTES les équipes qui apparaissent dans tes matchs 1.00
+    data = [
+        ("Mexico", 2, 0), ("South Africa", 1, 1), ("Czechia", 1, 1),
+        ("Canada", 2, 1), ("Bosnia-Herzegovina", 1, 2), ("Paraguay", 1, 1),
+        ("United States", 2, 0), ("Brazil", 2, 1), ("Morocco", 1, 1),
+        ("Qatar", 1, 1), ("Switzerland", 1, 1)
+    ]
+    cursor.executemany("INSERT INTO historique_matchs VALUES (?, ?, ?)", data)
+    conn.commit()
+    conn.close()
+    print("✅ Base mise à jour avec les équipes manquantes.")
+
+if __name__ == "__main__":
+    amorcer()
