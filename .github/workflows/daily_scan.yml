@@ -1,28 +1,28 @@
-name: Scan Quotidien
+name: Daily Scan
 
 on:
-  schedule:
-    - cron: '45 9 * * *' # 10h45 à Yaoundé
-  workflow_dispatch: 
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Récupération du code
-        uses: actions/checkout@v4
-
-      - name: Configuration de Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Installation des dépendances
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Installation des dépendances
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-      - name: Lancement du script
-        run: python Main.py
-        env:
-          API_KEY: ${{ secrets.API_KEY }}
+        pip install requests numpy scipy
+        
+    - name: Lancement du script
+      env:
+        API_KEY: ${{ secrets.API_KEY }}
+      run: |
+        python Main.py
