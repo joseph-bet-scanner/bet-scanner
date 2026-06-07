@@ -1,79 +1,39 @@
-import pandas as pd
-import math
-import sqlite3
+import os
 import requests
-from io import StringIO
+import datetime
 
-# --- CONFIGURATION ---
-DB_PATH = 'historique_analyses.db'
-REPORT_FILE = 'rapport_bets.txt'
+# Récupération sécurisée de la clé depuis les Secrets GitHub
+API_KEY = os.getenv('API_KEY')
+API_HOST = "api-football-v1.p.rapidapi.com"
 
-# Dictionnaire des ligues
-championnats = {
-    "Premier League": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
-    "La Liga": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
-    "Serie A": "https://www.football-data.co.uk/mmz4281/2526/I1.csv",
-    "Bundesliga": "https://www.football-data.co.uk/mmz4281/2526/D1.csv",
-    "Ligue 1": "https://www.football-data.co.uk/mmz4281/2526/F1.csv",
-    "Argentine": "https://www.football-data.co.uk/mmz4281/2526/ARG.csv",
-    "Brésil": "https://www.football-data.co.uk/mmz4281/2526/BRA.csv",
-    "Norvège": "https://www.football-data.co.uk/mmz4281/2526/N1.csv"
-}
-
-def get_csv_data(url):
-    # La carte d'identité pour passer le 403 Forbidden
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-    response = requests.get(url, headers=headers)
-    return StringIO(response.text)
-
-def clean_name(name):
-    return str(name).lower().replace(" ", "").replace("ü", "u").replace("é", "e")
-
-def get_team_stats(team_name):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT AVG(buts_pour), AVG(buts_contre) FROM historique_matchs WHERE equipe_clean = ?", (clean_name(team_name),))
-    row = cursor.fetchone()
-    conn.close()
-    return (float(row[0]), float(row[1])) if row and row[0] is not None else (1.2, 1.2)
-
-def calculer_poisson(lh, la):
-    def p(k, lam): return (lam**k * math.exp(-lam)) / math.factorial(k)
-    p1, px, p2 = 0, 0, 0
-    for i in range(6):
-        for j in range(6):
-            prob = p(i, lh) * p(j, la)
-            if i > j: p1 += prob
-            elif i == j: px += prob
-            else: p2 += prob
-    return p1, px, p2
-
-# --- SCANNER ---
-REPORT_FILE="rapport_bets.txt"
-open(REPORT_FILE, "w").close() 
-print("🚀 Scan mondial lancé avec contournement anti-bot...")
-
-for nom_ligue, url in championnats.items():
-    print(f"Analyse de {nom_ligue}...")
+def get_matches_today():
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    url = f"https://{API_HOST}/v3/fixtures"
+    querystring = {"date": today}
+    headers = {
+        "x-rapidapi-key": API_KEY,
+        "x-rapidapi-host": API_HOST
+    }
     try:
-        # Utilisation de la nouvelle fonction pour le téléchargement
-        df = pd.read_csv(get_csv_data(url))
-        matchs_a_venir = df[df['FTHG'].isna()] 
-        
-        for _, row in matchs_a_venir.iterrows():
-            h_team, a_team = row['HomeTeam'], row['AwayTeam']
-            att_h, def_h = get_team_stats(h_team)
-            att_a, def_a = get_team_stats(a_team)
-            
-            lh, la = att_h * def_a, att_a * def_h
-            p1, px, p2 = calculer_poisson(lh, la)
-            
-            conf = max(p1, p2, px)
-            if conf >= 0.60:
-                type_pari = "1" if p1 == conf else ("2" if p2 == conf else "Nul")
-                msg = f"🔥 {nom_ligue} | {h_team} vs {a_team} | Pari: {type_pari} | Conf: {conf*100:.1f}%"
-                with open(REPORT_FILE, "a") as f: f.write(msg + "\n")
+        response = requests.get(url, headers=headers, params=querystring)
+        if response.status_code == 200:
+            return response.json().get('response', [])
+        else:
+            print(f"Erreur API {response.status_code}: {response.text}")
+            return []
     except Exception as e:
-        print(f"Erreur sur {nom_ligue}: {e}")
+        print(f"Erreur de connexion : {e}")
+        return []
 
-print("✅ Scan terminé. Vérifie ton fichier rapport_bets.txt.")
+# --- EXÉCUTION ---
+print(f"🚀 Démarrage du scan automatique - {datetime.datetime.now()}")
+matchs = get_matches_today()
+
+if matchs:
+    print(f"✅ {len(matchs)} matchs trouvés pour aujourd'hui.")
+    for match in matchs:
+        h = match['teams']['home']['name']
+        a = match['teams']['away']['name']
+        print(f"Analyse : {h} vs {a}")
+else:
+    print("⚠️ Aucun match ou échec de l'API.")
