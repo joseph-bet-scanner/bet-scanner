@@ -1,38 +1,46 @@
 import requests
 import os
 
-# Configuration avec ta clé API
+# Configuration API
 API_KEY = os.getenv('API_KEY')
 HEADERS = {
-    "x-rapidapi-host": "sofascore.p.rapidapi.com",
-    "x-rapidapi-key": API_KEY
+    "x-rapidapi-host": "free-football-api-data.p.rapidapi.com",
+    "x-rapidapi-key": API_KEY,
+    "Content-Type": "application/json"
 }
 
-def get_matches_for_today():
-    # En utilisant l'endpoint que tu as validé via ton curl
-    # Note : teamId=38 est un exemple, assure-toi d'utiliser 
-    # l'ID d'une équipe qui joue aujourd'hui
-    url = "https://sofascore.p.rapidapi.com/teams/get-tournaments?teamId=38"
+def get_data(endpoint):
+    """Fonction générique pour appeler l'API sans erreurs"""
+    url = f"https://free-football-api-data.p.rapidapi.com/{endpoint}"
     try:
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
-        data = response.json()
-        
-        # On extrait les tournois/événements
-        # Ajuste 'tournaments' selon la structure du JSON retourné
-        return data.get('tournaments', [])
+        return response.json()
     except Exception as e:
-        print(f"Erreur lors de la récupération : {e}")
-        return []
+        print(f"Erreur lors de la requête vers {endpoint}: {e}")
+        return None
+
+def main():
+    print("--- SCAN DE PRODUCTION INITIALISÉ ---")
+    
+    # 1. Récupération de la liste des pays/ligues
+    data = get_data("football-all-countries")
+    
+    if data:
+        print(f"Connexion réussie. Analyse de {len(data)} ligues détectées.")
+        print("-" * 40)
+        
+        # 2. Traitement des résultats (Tri et affichage)
+        # On affiche les 10 premières ligues pour valider le flux
+        for item in data[:10]:
+            name = item.get('name', 'N/A')
+            league_id = item.get('id', 'N/A')
+            print(f"Ligue identifiée : {name} [ID: {league_id}]")
+            
+        print("-" * 40)
+        print("Scan terminé. Système opérationnel.")
+    else:
+        print("Erreur : Aucune donnée reçue du serveur.")
 
 if __name__ == "__main__":
-    print("--- Scan des matchs ---")
-    tournois = get_matches_for_today()
-    
-    if tournois:
-        print(f"Trouvé {len(tournois)} tournois actifs.")
-        for t in tournois:
-            print(f"Tournoi: {t.get('tournament', {}).get('name', 'N/A')}")
-    else:
-        print("Aucun tournoi trouvé pour cette équipe aujourd'hui.")
-    print("--- Scan terminé ---")
+    main()
