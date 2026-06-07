@@ -1,49 +1,33 @@
 import requests
 import os
+from datetime import datetime
 
-# Configuration API
 API_KEY = os.getenv('API_KEY')
-HEADERS = {
-    "X-RapidAPI-Key": API_KEY,
-    "X-RapidAPI-Host": "sofascore.p.rapidapi.com"
-}
+HEADERS = {"X-RapidAPI-Key": API_KEY, "X-RapidAPI-Host": "sofascore.p.rapidapi.com"}
 SEUIL_CONFIANCE = 0.05
 BANKROLL = 1000
 
-def get_live_matches():
-    url = "https://sofascore.p.rapidapi.com/v1/events/live"
+def get_todays_matches():
+    # Récupère la date actuelle
+    aujourd_hui = datetime.now().strftime('%Y-%m-%d')
+    url = f"https://sofascore.p.rapidapi.com/matches/date/{aujourd_hui}"
     try:
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
-        return [m['id'] for m in response.json().get('events', [])[:5]]
+        # Retourne les IDs des matchs du jour
+        return [m['id'] for m in response.json().get('events', [])[:10]]
     except Exception as e:
-        print(f"Erreur get_live_matches: {e}")
+        print(f"Erreur API (Date): {e}")
         return []
-
-def calculate_kelly_stake(prob, cote, bankroll):
-    if cote <= 1: return 0
-    b = cote - 1
-    kelly = ((cote * prob) - 1) / b
-    return max(0, (kelly * 0.25) * bankroll)
 
 def get_match_stats(match_id):
     try:
         h2h_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/h2h", headers=HEADERS).json()
         odds_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/odds/1/all", headers=HEADERS).json()
         
-        # Stats H2H
         duel = h2h_res.get('teamDuel', {})
-        h_wins = duel.get('homeWins', 0)
-        a_wins = duel.get('awayWins', 0)
-        draws = duel.get('draws', 0)
-        total = h_wins + a_wins + draws
+        total = duel.get('homeWins', 0) + duel.get('awayWins', 0) + duel.get('draws', 0)
         
-        # Moyenne buts
-        prev = h2h_res.get('previousMatches', [])
-        goals = sum([m.get('homeScore', {}).get('current', 0) + m.get('awayScore', {}).get('current', 0) for m in prev[:5]])
-        avg_goals = (goals / len(prev[:5])) if prev else 0
-        
-        # Cote
         c1 = 2.0
         markets = odds_res.get('markets', [])
         if markets and 'choices' in markets[0]:
@@ -51,24 +35,26 @@ def get_match_stats(match_id):
             num, den = map(int, val.split('/'))
             c1 = (num / den) + 1
         
-        prob_home = ((h_wins + draws) / total) if total > 0 else 0.5
-        is_value = prob_home > (1 / c1) + SEUIL_CONFIANCE
-        
-        return prob_home, c1, is_value, avg_goals
-    except Exception:
-        return None
+        prob_home = ((duel.get('homeWins', 0) + duel.get('draws', 0)) / total) if total > 0 else 0
+        return {"id": match_id, "prob": prob_home, "cote": c1}
+    except: return None
 
 if __name__ == "__main__":
-    print("--- Démarrage complet du scan ---")
-    matches = get_live_matches()
-    if not matches:
-        print("Aucun match live trouvé pour le moment.")
-    for m_id in matches:
-        res = get_match_stats(m_id)
-        if res:
-            prob, cote, value, goals = res
-            status = "!!! VALUE BET !!!" if value else "Standard"
-            print(f"Match {m_id} | Prob: {prob:.2f} | Cote: {cote:.2f} | Buts: {goals:.1f} | {status}")
-        else:
-            print(f"Match {m_id} | Données insuffisantes pour analyse.")
+    print(f"--- Scan des matchs du {datetime.now().strftime('%Y-%m-%d')} ---")
+    match_ids = get_todays_matches()
+    results = []
+
+    for m_id in match_ids:
+        stats = get_match_stats(m_id)
+        if stats and stats["prob"] > 0:
+            results.append(stats)
+
+    # Tri par probabilité décroissante
+    results.sort(key=lambda x: x["prob"], reverse=True)
+
+    for res in results:
+        is_value = res["prob"] > (1 / res["cote"]) + SEUIL_CONFIANCE
+        status = "!!! VALUE BET !!!" if is_value else "Standard"
+        print(f"Match {res['id']} | Prob: {res['prob']:.2f} | Cote: {res['cote']:.2f} | {status}")
+    
     print("--- Scan terminé ---")
