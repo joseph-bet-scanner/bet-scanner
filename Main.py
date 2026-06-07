@@ -1,69 +1,68 @@
 import requests
 import os
 
-# Configuration de la clé API
+# Configuration
 API_KEY = os.getenv('API_KEY')
 HEADERS = {
     "X-RapidAPI-Key": API_KEY,
     "X-RapidAPI-Host": "sofascore.p.rapidapi.com"
 }
+SEUIL_CONFIANCE = 0.05  # 5% de marge
+BANKROLL = 1000         # Ton capital de départ pour le calcul
 
 def get_live_matches():
-    # URL exacte fournie par ton Playground
-    url = "https://sofascore.p.rapidapi.com/tournaments/get-live-events?sport=football"
+    url = "https://sofascore.p.rapidapi.com/v1/events/live"
     try:
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
-        data = response.json()
-        # On extrait les IDs des événements (selon la structure habituelle de l'API)
-        return [m['id'] for m in data.get('events', [])[:5]]
-    except Exception as e:
-        print(f"Erreur get_live_matches: {e}")
-        return []
+        return [m['id'] for m in response.json().get('events', [])[:5]]
+    except: return []
+
+def calculate_kelly_stake(prob, cote, bankroll):
+    if cote <= 1: return 0
+    b = cote - 1
+    kelly = ((cote * prob) - 1) / b
+    return max(0, (kelly * 0.25) * bankroll)
 
 def get_match_stats(match_id):
     try:
-        # Endpoints pour stats et h2h
-        odds_url = f"https://sofascore.p.rapidapi.com/matches/{match_id}/odds/1/all"
-        h2h_url = f"https://sofascore.p.rapidapi.com/matches/{match_id}/h2h"
+        h2h_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/h2h", headers=HEADERS).json()
+        odds_res = requests.get(f"https://sofascore.p.rapidapi.com/matches/{match_id}/odds/1/all", headers=HEADERS).json()
         
-        odds_res = requests.get(odds_url, headers=HEADERS).json()
-        h2h_res = requests.get(h2h_url, headers=HEADERS).json()
-        
-        # Calcul cote
-        c1 = 2.0
-        try:
-            markets = odds_res.get('markets', [])
-            if markets:
-                choices = markets[0].get('choices', [])
-                if choices:
-                    val = choices[0].get('fractionalValue', '1/1')
-                    num, den = map(int, val.split('/'))
-                    c1 = (num / den) + 1
-        except: pass
-        
-        # Estimation xG
+        # Stats
         duel = h2h_res.get('teamDuel', {})
-        h_wins = duel.get('homeWins', 1)
-        a_wins = duel.get('awayWins', 1)
-        total = h_wins + a_wins
+        h_wins, a_wins, draws = duel.get('homeWins', 0), duel.get('awayWins', 0), duel.get('draws', 0)
+        total = h_wins + a_wins + draws
         
-        home_xg = (1.5 * (h_wins/total) + 0.5)
-        away_xg = (1.5 * (a_wins/total) + 0.5)
+        # Moyenne buts
+        goals = sum([m.get('homeScore', {}).get('current', 0) + m.get('awayScore', {}).get('current', 0) 
+                     for m in h2h_res.get('previousMatches', [])[:5]])
+        avg_goals = (goals / len(h2h_res.get('previousMatches', []))) if h2h_res.get('previousMatches') else 0
         
-        return home_xg, away_xg, c1
-    except Exception as e:
-        print(f"Erreur sur le match {match_id}: {e}")
-        return 1.0, 1.0, 2.0
+        # Cote
+        c1 = 2.0
+        markets = odds_res.get('markets', [])
+        if markets and 'choices' in markets[0]:
+            val = markets[0]['choices'][0].get('fractionalValue', '1/1')
+            num, den = map(int, val.split('/'))
+            c1 = (num / den) + 1
+        
+        prob_home = ((h_wins + draws) / total) if total > 0 else 0.5
+        is_value = prob_home > (1 / c1) + SEUIL_CONFIANCE
+        
+        return prob_home, c1, is_value, avg_goals
+    except: return None
 
 if __name__ == "__main__":
-    print("--- Démarrage du scan Sofascore ---")
+    print("--- Scan de Production ---")
     matches = get_live_matches()
-    if not matches:
-        print("Aucun match trouvé.")
-    else:
-        print(f"Matchs trouvés : {len(matches)}")
-        for m_id in matches:
-            stats = get_match_stats(m_id)
-            print(f"Match ID {m_id} : xG Home {stats[0]:.2f}, xG Away {stats[1]:.2f}, Cote {stats[2]:.2f}")
+    for m_id in matches:
+        res = get_match_stats(m_id)
+        if res:
+            prob, cote, value, goals = res
+            if value:
+                stake = calculate_kelly_stake(prob, cote, BANKROLL)
+                print(f"Match {m_id} | !!! VALUE BET !!! | DC: {prob:.2f} | Cote: {cote:.2f} | Buts: {goals:.1f} | Mise: {stake:.2f}€")
+            else:
+                print(f"Match {m_id} | Standard | DC: {prob:.2f} | Cote: {cote:.2f} | Buts: {goals:.1f}")
     print("--- Scan terminé ---")
