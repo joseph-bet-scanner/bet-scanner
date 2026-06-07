@@ -5,8 +5,8 @@ import requests
 from io import StringIO
 
 # --- CONFIGURATION ---
-DB_PATH = '/home/josephng/historique_analyses.db'
-REPORT_FILE = '/home/josephng/rapport_bets.txt'
+DB_PATH = 'historique_analyses.db'
+REPORT_FILE = 'rapport_bets.txt'
 
 # Dictionnaire des ligues
 championnats = {
